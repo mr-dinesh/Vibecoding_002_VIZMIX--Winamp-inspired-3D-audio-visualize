@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIZMIX 2 — Milkdrop Audio Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+:root {
+  --bg:#050508; --panel:rgba(6,6,16,0.96); --border:rgba(80,200,255,0.14);
+  --accent:#00f0ff; --accent2:#ff3cac; --accent3:#f8ff00; --accent4:#b060ff;
+  --text:#c8e8ff; --muted:#4a6a7a;
+  --glow:0 0 14px rgba(0,240,255,0.5); --glow2:0 0 14px rgba(255,60,172,0.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;overflow:hidden;height:100vh;width:100vw;user-select:none;}
+#cc{position:fixed;inset:0;z-index:0;}
+canvas{display:block;}
+/* ── TOPBAR ── */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:linear-gradient(180deg,rgba(5,5,8,.97) 0%,transparent 100%);border-bottom:1px solid var(--border);}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.25rem;letter-spacing:.15em;color:var(--accent);text-shadow:var(--glow);}
+.logo span{color:var(--accent2);} .logo sub{font-size:.45rem;color:var(--accent4);vertical-align:super;margin-left:2px;}
+.tinfo{font-size:.68rem;color:var(--muted);text-align:center;line-height:1.6;} .tinfo strong{color:var(--text);font-size:.78rem;}
+.fmeters{display:flex;gap:3px;align-items:flex-end;height:28px;}
+.fb{width:4px;background:var(--accent);border-radius:2px;box-shadow:0 0 4px var(--accent);}
+/* ── OVERLAYS ── */
+#axes{position:fixed;top:58px;right:14px;z-index:9;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:.58rem;line-height:2.1;backdrop-filter:blur(12px);}
+.ax{color:#ff5555;} .ay{color:#55ff55;} .az{color:#5599ff;}
+#combo{position:fixed;top:58px;left:14px;z-index:9;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:.58rem;line-height:1.9;backdrop-filter:blur(12px);min-width:140px;}
+#ccount{font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;color:var(--accent3);}
+#clabel{color:var(--muted);font-size:.58rem;} #cfx{color:var(--accent4);font-size:.56rem;line-height:1.7;margin-top:2px;}
+#idle{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:5;transition:opacity .5s;}
+#idle h2{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:var(--accent);text-shadow:0 0 30px var(--accent),0 0 60px rgba(0,240,255,.3);letter-spacing:.2em;margin-bottom:8px;}
+#idle p{font-size:.78rem;color:var(--muted);} #idle.hidden{opacity:0;}
+#bflash{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:radial-gradient(ellipse at center,rgba(255,60,172,.18) 0%,transparent 70%);transition:opacity .06s;}
+/* ── PANEL ── */
+#panel{position:fixed;bottom:0;left:0;right:0;z-index:10;background:var(--panel);border-top:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;backdrop-filter:blur(20px);}
+.crow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#dz{flex:0 0 auto;border:1.5px dashed var(--border);border-radius:8px;padding:6px 13px;cursor:pointer;transition:all .2s;font-size:.68rem;color:var(--muted);text-align:center;min-width:120px;}
+#dz:hover,#dz.drag{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow);}
+#dz input{display:none;}
+.ibtn{flex:0 0 auto;background:none;border:1.5px solid var(--border);border-radius:8px;padding:6px 11px;color:var(--muted);font-family:inherit;font-size:.68rem;cursor:pointer;transition:all .2s;}
+.ibtn:hover{border-color:var(--accent2);color:var(--accent2);}
+.ibtn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(255,60,172,.1);box-shadow:var(--glow2);}
+.sep{width:1px;height:34px;background:var(--border);flex-shrink:0;}
+.mbtn{background:none;border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;color:var(--muted);font-family:'Orbitron',monospace;font-size:.56rem;font-weight:700;letter-spacing:.07em;cursor:pointer;transition:all .2s;}
+.mbtn:hover{border-color:var(--accent);color:var(--accent);}
+.mbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,240,255,.08);box-shadow:var(--glow);}
+.flabel{font-size:.58rem;color:var(--muted);white-space:nowrap;}
+.fchip{background:none;border:1.5px solid var(--border);border-radius:20px;padding:4px 9px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:.63rem;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.fchip:hover{border-color:var(--accent3);color:var(--accent3);}
+.fchip.active{background:rgba(248,255,0,.08);border-color:var(--accent3);color:var(--accent3);box-shadow:0 0 8px rgba(248,255,0,.25);}
+.fchip.nx{border-color:rgba(176,96,255,.25);}
+.fchip.nx:hover{border-color:var(--accent4);color:var(--accent4);}
+.fchip.nx.active{background:rgba(176,96,255,.1);border-color:var(--accent4);color:var(--accent4);box-shadow:0 0 8px rgba(176,96,255,.35);}
+.pchip{background:none;border:1.5px solid rgba(255,60,172,.22);border-radius:6px;padding:4px 9px;color:var(--muted);font-family:'Orbitron',monospace;font-size:.53rem;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.05em;}
+.pchip:hover{border-color:var(--accent2);color:var(--accent2);box-shadow:var(--glow2);}
+.sbtn{background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--muted);font-size:.58rem;cursor:pointer;transition:all .15s;}
+.sbtn.active{border-color:var(--accent4);color:var(--accent4);}
+.sg{display:flex;flex-direction:column;gap:4px;}
+.sr{display:flex;align-items:center;gap:6px;font-size:.6rem;}
+.sl{color:var(--muted);width:60px;}
+input[type=range]{-webkit-appearance:none;width:82px;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;background:var(--accent);border-radius:50%;cursor:pointer;box-shadow:0 0 6px var(--accent);}
+.sv{color:var(--accent);width:26px;text-align:right;font-size:.6rem;}
+.pg{display:flex;gap:5px;align-items:center;} .pl{font-size:.6rem;color:var(--muted);}
+.ps{width:19px;height:19px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s;}
+.ps:hover,.ps.active{border-color:#fff;transform:scale(1.2);}
+.pb{display:flex;align-items:center;gap:8px;}
+.pbb{background:none;border:none;color:var(--text);font-size:1.05rem;cursor:pointer;padding:3px;transition:color .15s;}
+.pbb:hover{color:var(--accent);text-shadow:var(--glow);}
+.vc{display:flex;align-items:center;gap:5px;font-size:.6rem;color:var(--muted);}
+.vc input[type=range]{width:62px;}
+#pw{width:100%;height:3px;background:var(--border);border-radius:2px;cursor:pointer;}
+#pf{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;width:0%;box-shadow:0 0 6px var(--accent);}
+.td{display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);}
+</style>
+</head>
+<body>
+<div id="cc"><canvas id="c"></canvas></div>
+<div id="bflash"></div>
+<div id="topbar">
+  <div class="logo">VIZ<span>MIX</span><sub>2</sub></div>
+  <div class="tinfo"><strong id="tn">No audio loaded</strong><br><span id="tm">Drop a file · mic · or pick a preset</span></div>
+  <div class="fmeters" id="fm"></div>
+</div>
+<div id="axes"><div class="ax">X → Frequency</div><div class="ay">Y ↑ Amplitude</div><div class="az">Z ⬡ Time / Depth</div></div>
+<div id="combo"><div><span id="ccount">0</span> <span id="clabel">FX ACTIVE</span></div><div id="cfx">—</div></div>
+<div id="idle"><h2>VIZMIX 2</h2><p>Drop audio · mic · or choose a preset</p></div>
+<div id="panel">
+  <!-- Row 1 -->
+  <div class="crow">
+    <div id="dz" onclick="document.getElementById('fi').click()">🎵 Drop / Click<input type="file" id="fi" accept="audio/*"></div>
+    <button class="ibtn" id="micB" onclick="toggleMic()">🎙 MIC</button>
+    <div class="sep"></div>
+    <button class="mbtn active" data-mode="bars3d" onclick="setMode(this)">BARS</button>
+    <button class="mbtn" data-mode="wave" onclick="setMode(this)">WAVE</button>
+    <button class="mbtn" data-mode="waterfall" onclick="setMode(this)">FALL</button>
+    <button class="mbtn" data-mode="sphere" onclick="setMode(this)">SPHERE</button>
+    <button class="mbtn" data-mode="tunnel" onclick="setMode(this)">TUNNEL</button>
+    <button class="mbtn" data-mode="frac" onclick="setMode(this)">FRAC</button>
+    <div class="sep"></div>
+    <span class="flabel">PRESETS:</span>
+    <button class="pchip" onclick="applyPreset('psychedelic')">🌈 PSYCHEDELIC</button>
+    <button class="pchip" onclick="applyPreset('chaos')">💥 CHAOS</button>
+    <button class="pchip" onclick="applyPreset('cosmic')">🔮 COSMIC</button>
+    <button class="pchip" onclick="applyPreset('deepwater')">🌊 DEEP WATER</button>
+    <button class="pchip" onclick="applyPreset('milkrave')">🎆 MILK RAVE</button>
+    <button class="pchip" onclick="applyPreset('reset')" style="border-color:rgba(255,80,80,.3)">⬛ RESET</button>
+  </div>
+  <!-- Row 2 -->
+  <div class="crow">
+    <span class="flabel">FX:</span>
+    <button class="fchip" data-fx="trippy" onclick="toggleFX(this)">🌀 TRIPPY</button>
+    <button class="fchip" data-fx="bloom" onclick="toggleFX(this)">✨ BLOOM</button>
+    <button class="fchip" data-fx="mirror" onclick="toggleFX(this)">🪞 MIRROR</button>
+    <button class="fchip" data-fx="spin" onclick="toggleFX(this)">🔄 SPIN</button>
+    <button class="fchip" data-fx="pulse" onclick="toggleFX(this)">💓 PULSE</button>
+    <div style="width:1px;height:18px;background:var(--border)"></div>
+    <button class="fchip nx" data-fx="milkdrop" onclick="toggleFX(this)">🎆 MILKDROP</button>
+    <button class="fchip nx" data-fx="fractal" onclick="toggleFX(this)">🔷 FRACTAL</button>
+    <button class="fchip nx" data-fx="kaleido" onclick="toggleFX(this)">🔮 KALEIDO</button>
+    <button class="fchip nx" data-fx="wavedist" onclick="toggleFX(this)">〰 WAVEDIST</button>
+    <button class="fchip nx" data-fx="explode" onclick="toggleFX(this)">💥 EXPLODE</button>
+    <div class="sep"></div>
+    <span class="flabel">KALEIDO:</span>
+    <button class="sbtn" data-seg="4" onclick="setKSeg(this)">4</button>
+    <button class="sbtn active" data-seg="6" onclick="setKSeg(this)">6</button>
+    <button class="sbtn" data-seg="8" onclick="setKSeg(this)">8</button>
+    <button class="sbtn" data-seg="12" onclick="setKSeg(this)">12</button>
+    <button class="sbtn" data-seg="16" onclick="setKSeg(this)">16</button>
+    <div class="sep"></div>
+    <div class="pg">
+      <span class="pl">PAL</span>
+      <div class="ps active" style="background:linear-gradient(135deg,#00f0ff,#ff3cac)" data-pal="cyber" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:linear-gradient(135deg,#ff0040,#ff8800)" data-pal="fire" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:linear-gradient(135deg,#00ff88,#00aaff)" data-pal="ocean" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:linear-gradient(135deg,#cc00ff,#ff00aa)" data-pal="neon" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:linear-gradient(135deg,#fff,#888)" data-pal="mono" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)" data-pal="rainbow" onclick="setPalette(this)"></div>
+      <div class="ps" style="background:linear-gradient(135deg,#ff6,#f60)" data-pal="acid" onclick="setPalette(this)"></div>
+    </div>
+  </div>
+  <!-- Row 3 -->
+  <div class="crow">
+    <div class="pb">
+      <button class="pbb" id="playB" onclick="togglePlay()">▶</button>
+      <button class="pbb" onclick="stopAudio()">⏹</button>
+      <div class="vc">🔊<input type="range" id="volS" min="0" max="1" step=".01" value=".8" oninput="setVolume(this.value)"></div>
+    </div>
+    <div class="sep"></div>
+    <div class="sg">
+      <div class="sr"><span class="sl">SENSITIVITY</span><input type="range" id="senS" min=".5" max="4" step=".1" value="1.5" oninput="updS(this,'sensitivity')"><span class="sv" id="senV">1.5</span></div>
+      <div class="sr"><span class="sl">HEIGHT</span><input type="range" id="htS" min="1" max="5" step=".1" value="2" oninput="updS(this,'vizHeight')"><span class="sv" id="htV">2.0</span></div>
+    </div>
+    <div class="sg">
+      <div class="sr"><span class="sl">SMOOTH</span><input type="range" id="smS" min=".01" max=".95" step=".01" value=".75" oninput="updS(this,'smoothing')"><span class="sv" id="smV">0.75</span></div>
+      <div class="sr"><span class="sl">SPEED</span><input type="range" id="spS" min=".1" max="3" step=".1" value="1" oninput="updS(this,'animSpeed')"><span class="sv" id="spV">1.0</span></div>
+    </div>
+    <div class="sg">
+      <div class="sr"><span class="sl">WARP</span><input type="range" id="wpS" min=".1" max="3" step=".05" value="1" oninput="updS(this,'warpAmt')"><span class="sv" id="wpV">1.0</span></div>
+      <div class="sr"><span class="sl">FRACTAL</span><input type="range" id="frS" min=".5" max="3" step=".1" value="1" oninput="updS(this,'fracZoom')"><span class="sv" id="frV">1.0</span></div>
+    </div>
+    <div class="sep"></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:5px;">
+      <div class="td"><span id="tc">0:00</span><span id="tt">0:00</span></div>
+      <div id="pw" onclick="seekAudio(event)"><div id="pf"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════
+const FFT = 512, BARS = 128, FDEPTH = 48, MAXP = 3000;
+let audioCtx, analyser, gainNode, src, micStream;
+let audioBuf = null, isPlaying = false, micActive = false;
+let startTime = 0, pauseOff = 0;
+let mode = 'bars3d', palette = 'cyber', kSegs = 6;
+let t = 0, spinAngle = 0, camTheta = 0, camPhi = 0.38;
+let dataArr = new Uint8Array(FFT), smooth = new Float32Array(FFT);
+let beatEMA = 0, lastBeat = 0;
+const P = { sensitivity:1.5, vizHeight:2, smoothing:.75, animSpeed:1, warpAmt:1, fracZoom:1 };
+const FX = { trippy:false, bloom:false, mirror:false, spin:false, pulse:false,
+              milkdrop:false, fractal:false, kaleido:false, wavedist:false, explode:false };
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO ENGINE
+// ═══════════════════════════════════════════════════════════
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = FFT * 2;
+  analyser.smoothingTimeConstant = P.smoothing;
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = .8;
+  analyser.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+}
+async function loadFile(file) {
+  initAudio(); stopAudio();
+  micActive = false;
+  document.getElementById('micB').classList.remove('active');
+  if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream = null; }
+  const ab = await file.arrayBuffer();
+  audioBuf = await audioCtx.decodeAudioData(ab);
+  document.getElementById('tn').textContent = file.name.replace(/\.[^.]+$/, '');
+  document.getElementById('tm').textContent =
+    `${Math.floor(audioBuf.duration/60)}:${String(Math.floor(audioBuf.duration%60)).padStart(2,'0')} · ${(audioBuf.sampleRate/1000).toFixed(1)}kHz`;
+  document.getElementById('tt').textContent = fmt(audioBuf.duration);
+  document.getElementById('idle').classList.add('hidden');
+  playAudio();
+}
+function playAudio(off=0) {
+  if (!audioBuf) return;
+  if (src) { try { src.stop(); } catch(e){} }
+  src = audioCtx.createBufferSource();
+  src.buffer = audioBuf;
+  src.connect(analyser);
+  src.start(0, off);
+  startTime = audioCtx.currentTime - off;
+  isPlaying = true;
+  document.getElementById('playB').textContent = '⏸';
+  src.onended = () => { if (isPlaying) { isPlaying = false; document.getElementById('playB').textContent = '▶'; } };
+}
+function togglePlay() {
+  if (!audioBuf && !micActive) return;
+  if (micActive) return;
+  if (isPlaying) { pauseOff = audioCtx.currentTime - startTime; src.stop(); isPlaying = false; document.getElementById('playB').textContent = '▶'; }
+  else playAudio(pauseOff);
+}
+function stopAudio() {
+  if (src) { try { src.stop(); } catch(e){} src = null; }
+  isPlaying = false; pauseOff = 0;
+  document.getElementById('playB').textContent = '▶';
+  document.getElementById('pf').style.width = '0%';
+  document.getElementById('tc').textContent = '0:00';
+}
+async function toggleMic() {
+  initAudio();
+  if (micActive) { micActive = false; if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; } document.getElementById('micB').classList.remove('active'); return; }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx.createMediaStreamSource(micStream).connect(analyser);
+    micActive = true;
+    document.getElementById('micB').classList.add('active');
+    document.getElementById('tn').textContent = 'Microphone Input';
+    document.getElementById('tm').textContent = 'Live audio';
+    document.getElementById('idle').classList.add('hidden');
+  } catch(e) { alert('Mic access denied.'); }
+}
+function setVolume(v) { if (gainNode) gainNode.gain.value = parseFloat(v); }
+function seekAudio(e) {
+  if (!audioBuf) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  pauseOff = ((e.clientX - r.left) / r.width) * audioBuf.duration;
+  if (isPlaying) playAudio(pauseOff);
+  else document.getElementById('tc').textContent = fmt(pauseOff);
+}
+function fmt(s) { s = Math.floor(s); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+
+function getFreqData() {
+  if (!analyser) return;
+  analyser.smoothingTimeConstant = P.smoothing;
+  analyser.getByteFrequencyData(dataArr);
+  for (let i=0; i<BARS; i++) {
+    const raw = dataArr[Math.floor(i * analyser.frequencyBinCount / BARS)] / 255;
+    smooth[i] = smooth[i]*.12 + raw*.88;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BEAT DETECTION
+// ═══════════════════════════════════════════════════════════
+function detectBeat() {
+  const bass = (smooth[0]+smooth[1]+smooth[2]+smooth[3]+smooth[4]+smooth[5]) / 6;
+  beatEMA = beatEMA * .92 + bass * .08;
+  if (bass > beatEMA * 1.55 && bass > .08 && t - lastBeat > 8) {
+    beatEMA = bass * 1.05;
+    lastBeat = t;
+    return true;
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// COLOR PALETTES
+// ═══════════════════════════════════════════════════════════
+const PALS = {
+  cyber:   (t,i,n) => new THREE.Color().setHSL((t*.3+i/n*.5)%1, 1, .55),
+  fire:    (t,i,n) => new THREE.Color().setHSL(.06-i/n*.06, 1, .4+i/n*.35),
+  ocean:   (t,i,n) => new THREE.Color().setHSL(.5+i/n*.15, 1, .45+i/n*.2),
+  neon:    (t,i,n) => new THREE.Color().setHSL((.75+i/n*.3+t*.1)%1, 1, .55),
+  mono:    (t,i,n) => new THREE.Color().setHSL(0, 0, .3+i/n*.7),
+  rainbow: (t,i,n) => new THREE.Color().setHSL((i/n+t*.2)%1, 1, .5),
+  acid:    (t,i,n) => new THREE.Color().setHSL((.15+i/n*.25+t*.15)%1, 1, .6),
+};
+function getCol(i, n, amp) {
+  const c = PALS[palette](t*.001*P.animSpeed, i, n);
+  return FX.bloom ? c.clone().multiplyScalar(.7 + amp*1.3) : c;
+}
+
+// ═══════════════════════════════════════════════════════════
+// THREE.JS SETUP
+// ═══════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.autoClear = false;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 1, .1, 1000);
+const CAM_R = 50;
+
+const ambLight = new THREE.AmbientLight(0x111122, 1);
+scene.add(ambLight);
+const ptL1 = new THREE.PointLight(0x00f0ff, 2.5, 120);
+ptL1.position.set(-20, 30, 20); scene.add(ptL1);
+const ptL2 = new THREE.PointLight(0xff3cac, 2.5, 120);
+ptL2.position.set(20, 30, -20); scene.add(ptL2);
+
+const grid = new THREE.GridHelper(100, 40, 0x0a2030, 0x080f18);
+grid.position.y = -.5; scene.add(grid);
+
+// ═══════════════════════════════════════════════════════════
+// SHADERS
+// ═══════════════════════════════════════════════════════════
+const VERT_FS = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy,0.,1.); }`;
+
+// ── FRACTAL (Julia set) ──
+const FRAG_FRACTAL = `
+uniform float time; uniform float bass; uniform float mid; uniform float fracZoom;
+varying vec2 vUv;
+vec3 palette(float t){
+  return .5+.5*cos(6.28318*(vec3(1.,1.,1.)*t+vec3(0.,.33,.67)));
+}
+void main(){
+  vec2 uv=(vUv-.5)*(3.2/fracZoom);
+  uv*=1.+bass*.18;
+  float tm=time*.00048;
+  vec2 c=vec2(.355*cos(tm*.7)-.22*sin(tm*.31),.355*sin(tm*.5)+.22*cos(tm*.43));
+  c+=vec2(mid*.08,bass*.06);
+  vec2 z=uv; float iter=80.;
+  for(int i=0;i<80;i++){
+    if(dot(z,z)>4.){iter=float(i);break;}
+    z=vec2(z.x*z.x-z.y*z.y+c.x,2.*z.x*z.y+c.y);
+  }
+  if(iter>=80.){gl_FragColor=vec4(0.,0.,.02,1.);return;}
+  float logZ=log(dot(z,z))*.5;
+  float nu=log2(max(logZ,.001));
+  float f=(iter+1.-nu)/80.;
+  vec3 col=palette(f+tm*.6);
+  gl_FragColor=vec4(col*.75,1.);
+}`;
+
+// ── KALEIDOSCOPE ──
+const FRAG_KALEIDO = `
+#define PI 3.14159265
+uniform sampler2D t; uniform float segs; uniform float time;
+varying vec2 vUv;
+void main(){
+  vec2 uv=vUv-.5;
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float seg=PI/segs;
+  a=mod(a,2.*seg);
+  if(a>seg) a=2.*seg-a;
+  a+=time*.00025;
+  vec2 nuv=vec2(cos(a),sin(a))*r+.5;
+  nuv=clamp(nuv,0.,1.);
+  gl_FragColor=texture2D(t,nuv);
+}`;
+
+// ── MILKDROP WARP ──
+const FRAG_MILK = `
+uniform sampler2D tCur; uniform sampler2D tPrev;
+uniform float time; uniform float bass; uniform float treble; uniform float warpAmt;
+varying vec2 vUv;
+vec3 hueShift(vec3 c,float h){
+  vec3 k=vec3(.57735); float cs=cos(h),sn=sin(h);
+  return c*cs+cross(k,c)*sn+k*dot(k,c)*(1.-cs);
+}
+void main(){
+  float tm=time*.001; float b=bass;
+  vec2 uv=vUv;
+  vec2 ct=uv-.5;
+  float zoom=.986-b*.014;
+  float rot=(.003+b*.007)*warpAmt;
+  float cr=cos(rot),sr=sin(rot);
+  vec2 wuv=vec2(ct.x*cr-ct.y*sr,ct.x*sr+ct.y*cr)*zoom+.5;
+  float wa=(.006+b*.013+treble*.004)*warpAmt;
+  wuv.x+=sin(uv.y*6.5+tm*3.)*wa;
+  wuv.y+=cos(uv.x*6.5+tm*2.7)*wa;
+  float sw=(.045+b*.09)*warpAmt;
+  vec2 sc=wuv-.5; float dist=length(sc);
+  float sa=sw/(dist+.25);
+  float cs2=cos(sa),sn2=sin(sa);
+  wuv=vec2(sc.x*cs2-sc.y*sn2,sc.x*sn2+sc.y*cs2)+.5;
+  wuv=clamp(wuv,0.,1.);
+  vec4 prev=texture2D(tPrev,wuv);
+  prev.rgb=hueShift(prev.rgb,(.018+b*.04)*warpAmt);
+  prev*=.86;
+  vec4 curr=texture2D(tCur,vUv);
+  gl_FragColor=clamp(prev+curr*.58,0.,1.);
+  gl_FragColor.a=1.;
+}`;
+
+// ── COPY ──
+const FRAG_COPY = `uniform sampler2D t; varying vec2 vUv; void main(){gl_FragColor=texture2D(t,vUv);}`;
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TARGETS & FULLSCREEN QUAD
+// ═══════════════════════════════════════════════════════════
+let rtA, rtB, rtMilk;
+const fsGeo = new THREE.PlaneGeometry(2, 2);
+const fsCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const fsScene = new THREE.Scene();
+const fsMesh = new THREE.Mesh(fsGeo);
+fsScene.add(fsMesh);
+
+const copyMat = new THREE.ShaderMaterial({ uniforms:{t:{value:null}}, vertexShader:VERT_FS, fragmentShader:FRAG_COPY });
+const fracMat = new THREE.ShaderMaterial({ uniforms:{time:{value:0},bass:{value:0},mid:{value:0},fracZoom:{value:1}}, vertexShader:VERT_FS, fragmentShader:FRAG_FRACTAL, depthTest:false, depthWrite:false });
+const kalMat = new THREE.ShaderMaterial({ uniforms:{t:{value:null},segs:{value:6.},time:{value:0}}, vertexShader:VERT_FS, fragmentShader:FRAG_KALEIDO });
+const milkMat = new THREE.ShaderMaterial({ uniforms:{tCur:{value:null},tPrev:{value:null},time:{value:0},bass:{value:0},treble:{value:0},warpAmt:{value:1}}, vertexShader:VERT_FS, fragmentShader:FRAG_MILK });
+
+const bgScene = new THREE.Scene();
+const bgCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), fracMat));
+
+function mkRT(w,h){ return new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat}); }
+function initRTs(){
+  const w=innerWidth, h=innerHeight;
+  [rtA,rtB,rtMilk].forEach(r=>r&&r.dispose());
+  rtA=mkRT(w,h); rtB=mkRT(w,h); rtMilk=mkRT(w,h);
+}
+initRTs();
+
+// ═══════════════════════════════════════════════════════════
+// PARTICLE SYSTEM
+// ═══════════════════════════════════════════════════════════
+const pPos = new Float32Array(MAXP*3), pVel = new Float32Array(MAXP*3);
+const pCol = new Float32Array(MAXP*3), pLife = new Float32Array(MAXP);
+const pDecay = new Float32Array(MAXP), pSz = new Float32Array(MAXP);
+const pFree = Array.from({length:MAXP},(_,i)=>i);
+
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('aColor',   new THREE.BufferAttribute(pCol, 3));
+pGeo.setAttribute('life',     new THREE.BufferAttribute(pLife, 1));
+pGeo.setAttribute('aSize',    new THREE.BufferAttribute(pSz, 1));
+
+const pMat = new THREE.ShaderMaterial({
+  vertexShader:`
+    attribute float life; attribute float aSize; attribute vec3 aColor;
+    varying vec3 vC; varying float vL;
+    void main(){
+      vC=aColor; vL=life;
+      if(life<=0.){gl_PointSize=0.;gl_Position=vec4(2.,2.,0.,1.);return;}
+      vec4 mv=modelViewMatrix*vec4(position,1.);
+      gl_PointSize=aSize*life*(180./-mv.z);
+      gl_Position=projectionMatrix*mv;
+    }`,
+  fragmentShader:`
+    varying vec3 vC; varying float vL;
+    void main(){
+      if(vL<=0.) discard;
+      vec2 uv=gl_PointCoord-.5;
+      float r=length(uv)*2.;
+      if(r>1.) discard;
+      float a=(1.-r)*vL;
+      gl_FragColor=vec4(vC*(0.7+vL*.6),a);
+    }`,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+});
+const pMesh = new THREE.Points(pGeo, pMat);
+scene.add(pMesh);
+
+function emitBurst(x,y,z,n,col){
+  for(let i=0;i<n;i++){
+    if(!pFree.length) break;
+    const idx=pFree.pop();
+    const spd=Math.random()*.9+.2;
+    const phi=Math.acos(2*Math.random()-1), th=Math.random()*Math.PI*2;
+    pPos[idx*3]=x; pPos[idx*3+1]=y; pPos[idx*3+2]=z;
+    pVel[idx*3]=Math.sin(phi)*Math.cos(th)*spd;
+    pVel[idx*3+1]=Math.cos(phi)*spd+.35;
+    pVel[idx*3+2]=Math.sin(phi)*Math.sin(th)*spd;
+    pCol[idx*3]=col.r; pCol[idx*3+1]=col.g; pCol[idx*3+2]=col.b;
+    pLife[idx]=1.; pDecay[idx]=.009+Math.random()*.013; pSz[idx]=3+Math.random()*8;
+  }
+}
+function tickParticles(){
+  for(let i=0;i<MAXP;i++){
+    if(pLife[i]<=0) continue;
+    pPos[i*3]+=pVel[i*3]*.45; pPos[i*3+1]+=pVel[i*3+1]*.45; pPos[i*3+2]+=pVel[i*3+2]*.45;
+    pVel[i*3+1]-=.018; pVel[i*3]*=.97; pVel[i*3+2]*=.97;
+    pLife[i]-=pDecay[i];
+    if(pLife[i]<=0){ pLife[i]=0; pFree.push(i); }
+  }
+  pGeo.attributes.position.needsUpdate=true;
+  pGeo.attributes.life.needsUpdate=true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// VISUALIZATION OBJECTS
+// ═══════════════════════════════════════════════════════════
+
+// ── BARS ──
+const barGrp = new THREE.Group(); scene.add(barGrp);
+const barM = [];
+const BSPC = 80/BARS;
+for(let i=0;i<BARS;i++){
+  const g = new THREE.BoxGeometry(.68,1,.68); g.translate(0,.5,0);
+  const m = new THREE.Mesh(g, new THREE.MeshPhongMaterial({color:0x00f0ff,emissive:0x001a22,shininess:90}));
+  m.position.x=(i-BARS/2)*BSPC; barGrp.add(m); barM.push(m);
+}
+
+// ── WAVE ──
+const waveGrp = new THREE.Group(); scene.add(waveGrp);
+{
+  const mk=(col)=>{
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(BARS*3),3));
+    const m=new THREE.Line(g,new THREE.LineBasicMaterial({color:col,linewidth:2}));
+    waveGrp.add(m); return m;
+  };
+  waveGrp.userData.l1=mk(0x00f0ff);
+  waveGrp.userData.l2=mk(0xff3cac);
+  waveGrp.userData.l3=mk(0xf8ff00);
+}
+
+// ── WATERFALL ──
+const fallGrp=new THREE.Group(); scene.add(fallGrp);
+const fallRows=[];
+for(let z=0;z<FDEPTH;z++){
+  const row=[];
+  for(let i=0;i<BARS;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(BSPC*.88,.2,.7),new THREE.MeshBasicMaterial({color:0x00f0ff}));
+    m.position.set((i-BARS/2)*BSPC,0,-z*1.15); fallGrp.add(m); row.push(m);
+  }
+  fallRows.push(row);
+}
+fallGrp.position.z=18;
+const fallHist=Array.from({length:FDEPTH},()=>new Float32Array(BARS));
+let fallFrame=0;
+
+// ── SPHERE ──
+const sphGrp=new THREE.Group(); scene.add(sphGrp);
+{
+  const N=1800, pos=new Float32Array(N*3), col=new Float32Array(N*3), spts=[];
+  for(let i=0;i<N;i++){
+    const phi=Math.acos(1-2*(i+.5)/N), theta=Math.PI*(1+Math.sqrt(5))*i;
+    pos[i*3]=Math.sin(phi)*Math.cos(theta); pos[i*3+1]=Math.cos(phi); pos[i*3+2]=Math.sin(phi)*Math.sin(theta);
+    col[i*3]=col[i*3+1]=col[i*3+2]=1; spts.push({phi,theta});
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const pts=new THREE.Points(g,new THREE.PointsMaterial({size:.4,vertexColors:true,sizeAttenuation:true}));
+  sphGrp.add(pts);
+  sphGrp.userData.pts=pts; sphGrp.userData.base=pos.slice(); sphGrp.userData.spts=spts;
+}
+
+// ── TUNNEL ──
+const tunGrp=new THREE.Group(); scene.add(tunGrp);
+const tunRings=[];
+const RNUM=32, RPTS=64;
+for(let r=0;r<RNUM;r++){
+  const pts=[];
+  for(let p=0;p<=RPTS;p++) pts.push(new THREE.Vector3(Math.cos(p/RPTS*Math.PI*2)*12,Math.sin(p/RPTS*Math.PI*2)*12,-r*3));
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  const ring=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x00f0ff}));
+  tunGrp.add(ring); tunRings.push(ring);
+}
+tunGrp.position.z=30;
+
+// ── FREQ METER BARS (topbar) ──
+const MNUM=14; const mBars=[];
+const fmEl=document.getElementById('fm');
+for(let i=0;i<MNUM;i++){ const b=document.createElement('div'); b.className='fb'; b.style.height='3px'; fmEl.appendChild(b); mBars.push(b); }
+
+// ═══════════════════════════════════════════════════════════
+// CAMERA ORBIT
+// ═══════════════════════════════════════════════════════════
+let isDragging=false, lastMX=0, lastMY=0;
+document.addEventListener('mousedown',e=>{ isDragging=true; lastMX=e.clientX; lastMY=e.clientY; });
+document.addEventListener('mouseup',()=>isDragging=false);
+document.addEventListener('mousemove',e=>{
+  if(!isDragging) return;
+  camTheta+=(e.clientX-lastMX)*.005; camPhi=Math.max(.05,Math.min(1.3,camPhi+(e.clientY-lastMY)*.005));
+  lastMX=e.clientX; lastMY=e.clientY;
+});
+let lTouch=null;
+document.addEventListener('touchstart',e=>lTouch=e.touches[0]);
+document.addEventListener('touchmove',e=>{
+  if(!lTouch) return;
+  camTheta+=(e.touches[0].clientX-lTouch.clientX)*.006;
+  camPhi=Math.max(.05,Math.min(1.3,camPhi+(e.touches[0].clientY-lTouch.clientY)*.006));
+  lTouch=e.touches[0]; e.preventDefault();
+},{passive:false});
+window.addEventListener('wheel',e=>{ camPhi=Math.max(.05,Math.min(1.3,camPhi+e.deltaY*.001)); });
+
+// ═══════════════════════════════════════════════════════════
+// MAIN RENDER FUNCTION (post-processing pipeline)
+// ═══════════════════════════════════════════════════════════
+function renderFrame() {
+  const needRT = FX.milkdrop || FX.kaleido;
+  const tgt = needRT ? rtA : null;
+
+  // Update fractal uniforms
+  const bass6 = (smooth[0]+smooth[1]+smooth[2]+smooth[3]+smooth[4]+smooth[5])/6;
+  const mid16 = smooth.slice(32,48).reduce((a,b)=>a+b,0)/16;
+  const tre32 = smooth.slice(96,128).reduce((a,b)=>a+b,0)/32;
+  fracMat.uniforms.time.value = t; fracMat.uniforms.bass.value = bass6*P.sensitivity;
+  fracMat.uniforms.mid.value = mid16*P.sensitivity; fracMat.uniforms.fracZoom.value = P.fracZoom;
+  milkMat.uniforms.time.value = t; milkMat.uniforms.bass.value = bass6*P.sensitivity;
+  milkMat.uniforms.treble.value = tre32*P.sensitivity; milkMat.uniforms.warpAmt.value = P.warpAmt;
+  kalMat.uniforms.segs.value = kSegs; kalMat.uniforms.time.value = t;
+
+  // Set clear color
+  if (FX.trippy && !FX.fractal && mode !== 'frac') {
+    renderer.setClearColor(new THREE.Color().setHSL((t*.003*P.animSpeed)%1,.4,.04),1);
+  } else {
+    renderer.setClearColor(0x050508, 1);
+  }
+
+  // ── PASS 1: Scene to tgt (or screen) ──
+  renderer.setRenderTarget(tgt);
+  renderer.clear(true,true,true);
+
+  if (FX.fractal || mode === 'frac') {
+    renderer.render(bgScene, bgCam);
+  }
+  if (mode !== 'frac') {
+    renderer.render(scene, camera);
+  }
+
+  if (!needRT) return;
+
+  let cur = rtA, oth = rtB;
+
+  // ── PASS 2: Kaleidoscope ──
+  if (FX.kaleido) {
+    kalMat.uniforms.t.value = cur.texture;
+    fsMesh.material = kalMat;
+    renderer.setRenderTarget(oth);
+    renderer.clear(true,true,true);
+    renderer.render(fsScene, fsCam);
+    [cur,oth]=[oth,cur];
+  }
+
+  // ── PASS 3: Milkdrop ──
+  if (FX.milkdrop) {
+    milkMat.uniforms.tCur.value = cur.texture;
+    milkMat.uniforms.tPrev.value = rtMilk.texture;
+    fsMesh.material = milkMat;
+    renderer.setRenderTarget(oth);
+    renderer.clear(true,true,true);
+    renderer.render(fsScene, fsCam);
+    [cur,oth]=[oth,cur];
+    // Save to milk prev
+    copyMat.uniforms.t.value = cur.texture;
+    fsMesh.material = copyMat;
+    renderer.setRenderTarget(rtMilk);
+    renderer.clear(true,true,true);
+    renderer.render(fsScene, fsCam);
+  }
+
+  // ── PASS 4: Blit to screen ──
+  copyMat.uniforms.t.value = cur.texture;
+  fsMesh.material = copyMat;
+  renderer.setRenderTarget(null);
+  renderer.clear(true,true,true);
+  renderer.render(fsScene, fsCam);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════
+function animate() {
+  requestAnimationFrame(animate);
+  t++;
+  getFreqData();
+
+  // Beat detection & explosion
+  const beat = analyser && detectBeat();
+  if (beat && FX.explode) {
+    const nb = 3 + Math.floor(Math.random()*3);
+    for (let b=0;b<nb;b++) {
+      const bi = Math.floor(Math.random()*BARS);
+      const amp = smooth[bi]*P.sensitivity;
+      const x = (bi-BARS/2)*BSPC + (Math.random()-.5)*10;
+      const y = amp*P.vizHeight*20 + Math.random()*5;
+      const z = Math.random()*20-10;
+      emitBurst(x,y,z, 60+Math.floor(Math.random()*90), getCol(bi,BARS,amp));
+    }
+    const bf=document.getElementById('bflash');
+    bf.style.opacity='1'; setTimeout(()=>bf.style.opacity='0', 90);
+    // Light pulse
+    ptL1.intensity = 5; ptL2.intensity = 5;
+    setTimeout(()=>{ ptL1.intensity=2.5; ptL2.intensity=2.5; },150);
+  }
+
+  if (FX.explode) tickParticles();
+  pMesh.visible = FX.explode;
+
+  // Camera
+  if (FX.spin) spinAngle += .005*P.animSpeed;
+  const ct = camTheta+spinAngle;
+  camera.position.x = Math.sin(ct)*Math.cos(camPhi)*CAM_R;
+  camera.position.y = Math.sin(camPhi)*CAM_R*.6+5;
+  camera.position.z = Math.cos(ct)*Math.cos(camPhi)*CAM_R;
+  camera.lookAt(0,5,0);
+
+  // Pulse
+  let ss = 1;
+  if (FX.pulse) {
+    const b=(smooth[0]+smooth[1]+smooth[2]+smooth[3])/4;
+    ss = 1+b*.13*P.sensitivity;
+  }
+
+  // Wave distort helper
+  function wd(x,y,z,a,idx){
+    if(!FX.wavedist) return {x,y,z};
+    const sp=P.animSpeed*.04;
+    return {
+      x: x+Math.sin(idx*.25+t*sp)*a*3,
+      y: y+Math.cos(idx*.4+t*sp*1.3)*a*2,
+      z: z+Math.sin(idx*.18+t*sp*.9)*a*1.5
+    };
+  }
+
+  // ── Hide all groups ──
+  barGrp.visible=waveGrp.visible=fallGrp.visible=sphGrp.visible=tunGrp.visible=false;
+
+  // ── BARS 3D ──
+  if (mode==='bars3d') {
+    barGrp.visible=true; barGrp.scale.set(ss,ss,ss);
+    for(let i=0;i<BARS;i++){
+      const amp=smooth[i]*P.sensitivity;
+      const h=Math.max(.01,amp*P.vizHeight*20);
+      barM[i].scale.y=h;
+      const wp=wd((i-BARS/2)*BSPC,0,0,amp,i);
+      barM[i].position.x=wp.x; barM[i].position.z=wp.z;
+      const col=getCol(i,BARS,amp);
+      barM[i].material.color=col; barM[i].material.emissive=col.clone().multiplyScalar(.3);
+      if(FX.mirror){ barM[BARS-1-i].scale.y=h; barM[BARS-1-i].material.color=col; }
+    }
+  }
+
+  // ── WAVE ──
+  if (mode==='wave') {
+    waveGrp.visible=true; waveGrp.scale.set(ss,ss,ss);
+    const {l1,l2,l3}=waveGrp.userData;
+    const p1=l1.geometry.attributes.position.array;
+    const p2=l2.geometry.attributes.position.array;
+    const p3=l3.geometry.attributes.position.array;
+    for(let i=0;i<BARS;i++){
+      const amp=smooth[i]*P.sensitivity;
+      const x=(i-BARS/2)*BSPC;
+      let y=amp*P.vizHeight*18;
+      if(FX.wavedist){ y+=Math.sin(i*.3+t*.06*P.animSpeed)*4*amp; y+=Math.cos(i*.5+t*.04)*2; }
+      p1[i*3]=x; p1[i*3+1]=y; p1[i*3+2]=0;
+      p2[i*3]=x; p2[i*3+1]=-y*.65; p2[i*3+2]=2;
+      p3[i*3]=x; p3[i*3+1]=y*.3*Math.sin(i*.1+t*.02); p3[i*3+2]=-2;
+      const col=getCol(i,BARS,amp);
+      l1.material.color=col;
+    }
+    [l1,l2,l3].forEach(l=>l.geometry.attributes.position.needsUpdate=true);
+  }
+
+  // ── WATERFALL ──
+  if (mode==='waterfall') {
+    fallGrp.visible=true;
+    const nr=new Float32Array(BARS);
+    for(let i=0;i<BARS;i++) nr[i]=smooth[i];
+    fallHist[fallFrame%FDEPTH]=nr; fallFrame++;
+    for(let z=0;z<FDEPTH;z++){
+      const row=fallHist[((fallFrame-1-z)+FDEPTH*2)%FDEPTH]||new Float32Array(BARS);
+      const fade=1-z/FDEPTH*.7;
+      for(let i=0;i<BARS;i++){
+        const amp=row[i]*P.sensitivity;
+        const h=Math.max(.05,amp*P.vizHeight*6);
+        fallRows[z][i].scale.y=h; fallRows[z][i].position.y=h/2;
+        const col=PALS[palette](t*.001,i+z*2,BARS+FDEPTH*2).multiplyScalar(fade);
+        if(FX.wavedist){ fallRows[z][i].position.x=(i-BARS/2)*BSPC+Math.sin(z*.4+t*.04*P.animSpeed)*2; }
+        else { fallRows[z][i].position.x=(i-BARS/2)*BSPC; }
+        fallRows[z][i].material.color=col;
+      }
+    }
+  }
+
+  // ── SPHERE ──
+  if (mode==='sphere') {
+    sphGrp.visible=true; sphGrp.scale.set(ss,ss,ss);
+    const {pts,base,spts}=sphGrp.userData;
+    const pos=pts.geometry.attributes.position.array;
+    const col=pts.geometry.attributes.color.array;
+    const N=spts.length, R=12;
+    for(let i=0;i<N;i++){
+      const fi=Math.floor((i/N)*BARS);
+      const amp=smooth[fi]*P.sensitivity;
+      let r=R+amp*P.vizHeight*9;
+      if(FX.wavedist){ r+=Math.sin(spts[i].phi*3+t*.04*P.animSpeed)*amp*2.5; r+=Math.cos(spts[i].theta*2+t*.03)*amp*1.5; }
+      if(FX.trippy){ r+=Math.sin(t*.05+i*.1)*.5; }
+      pos[i*3]=base[i*3]*r; pos[i*3+1]=base[i*3+1]*r; pos[i*3+2]=base[i*3+2]*r;
+      const c=getCol(fi,BARS,amp);
+      col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+    }
+    pts.geometry.attributes.position.needsUpdate=true; pts.geometry.attributes.color.needsUpdate=true;
+    sphGrp.rotation.y+=.003*P.animSpeed; sphGrp.rotation.x+=.001*P.animSpeed;
+  }
+
+  // ── TUNNEL ──
+  if (mode==='tunnel') {
+    tunGrp.visible=true; tunGrp.scale.set(ss,ss,ss);
+    for(let r=0;r<RNUM;r++){
+      const fi=Math.floor((r/RNUM)*BARS*.5);
+      const amp=smooth[fi]*P.sensitivity;
+      let rad=12+amp*P.vizHeight*10;
+      const twist=FX.trippy ? t*.01*P.animSpeed : 0;
+      const ring=tunRings[r];
+      const pos=ring.geometry.attributes.position.array;
+      for(let p=0;p<=RPTS;p++){
+        const a=(p/RPTS)*Math.PI*2+twist+r*.2;
+        let wobble=FX.wavedist ? Math.sin(t*.05+r*.5+p*.1)*amp*4 : 0;
+        if(FX.trippy) wobble+=Math.cos(t*.03+p*.2)*amp*2;
+        pos[p*3]=Math.cos(a)*(rad+wobble); pos[p*3+1]=Math.sin(a)*(rad+wobble);
+      }
+      ring.geometry.attributes.position.needsUpdate=true;
+      ring.material.color=getCol(Math.floor((r/RNUM)*BARS),BARS,amp);
+      ring.position.z=((r*3-t*P.animSpeed*.3)%(RNUM*3));
+      if(ring.position.z>5) ring.position.z-=RNUM*3;
+    }
+  }
+
+  // Freq meters
+  const mstep=Math.floor(BARS/MNUM);
+  for(let i=0;i<MNUM;i++){
+    const v=smooth[i*mstep]*P.sensitivity;
+    mBars[i].style.height=`${3+v*25}px`;
+    const c=PALS[palette](t*.001,i,MNUM);
+    const h2=Math.round(c.getHSL({}).h*360);
+    mBars[i].style.background=`hsl(${h2},100%,60%)`;
+    mBars[i].style.boxShadow=`0 0 6px hsl(${h2},100%,60%)`;
+  }
+
+  // Progress
+  if (isPlaying && audioBuf) {
+    const el=Math.min(audioCtx.currentTime-startTime,audioBuf.duration);
+    document.getElementById('pf').style.width=`${el/audioBuf.duration*100}%`;
+    document.getElementById('tc').textContent=fmt(el);
+  }
+
+  // Combo UI
+  const active=Object.entries(FX).filter(([,v])=>v).map(([k])=>k.toUpperCase());
+  document.getElementById('ccount').textContent=active.length;
+  document.getElementById('cfx').textContent=active.length?active.join(' · '):'—';
+  const cc=document.getElementById('ccount');
+  if(active.length>=7){ cc.style.color='var(--accent2)'; document.getElementById('clabel').textContent='OVERLOAD ⚡'; }
+  else if(active.length>=4){ cc.style.color='var(--accent3)'; document.getElementById('clabel').textContent='COMBO 🔥'; }
+  else { cc.style.color='var(--accent)'; document.getElementById('clabel').textContent='FX ACTIVE'; }
+
+  renderFrame();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESIZE
+// ═══════════════════════════════════════════════════════════
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  initRTs();
+}
+resize(); window.addEventListener('resize',resize);
+
+// ═══════════════════════════════════════════════════════════
+// UI HANDLERS
+// ═══════════════════════════════════════════════════════════
+function setMode(btn){
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); mode=btn.dataset.mode;
+}
+function toggleFX(btn){
+  btn.classList.toggle('active'); FX[btn.dataset.fx]=btn.classList.contains('active');
+}
+function setKSeg(btn){
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); kSegs=parseInt(btn.dataset.seg);
+}
+function setPalette(el){
+  document.querySelectorAll('.ps').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active'); palette=el.dataset.pal;
+}
+function updS(el,key){
+  P[key]=parseFloat(el.value);
+  const vid=el.id.replace(/[A-Z].*/,'')+el.id.replace(/^[^A-Z]*/,'').replace(/S$/,'V');
+  // map IDs to value spans
+  const map={senS:'senV',htS:'htV',smS:'smV',spS:'spV',wpS:'wpV',frS:'frV'};
+  const ve=document.getElementById(map[el.id]);
+  if(ve) ve.textContent=parseFloat(el.value).toFixed(1);
+  if(key==='smoothing'&&analyser) analyser.smoothingTimeConstant=P.smoothing;
+}
+function applyPreset(name){
+  Object.keys(FX).forEach(k=>FX[k]=false);
+  document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('active'));
+  const PRES={
+    psychedelic:{ fx:['trippy','milkdrop','fractal','kaleido','pulse'], mode:'sphere', pal:'rainbow' },
+    chaos:      { fx:['explode','wavedist','bloom','spin','pulse'], mode:'bars3d', pal:'fire' },
+    cosmic:     { fx:['fractal','spin','bloom','milkdrop','pulse'], mode:'sphere', pal:'neon' },
+    deepwater:  { fx:['wavedist','milkdrop','pulse','bloom'], mode:'waterfall', pal:'ocean' },
+    milkrave:   { fx:['milkdrop','kaleido','fractal','explode','trippy','pulse'], mode:'tunnel', pal:'acid' },
+    reset:      { fx:[], mode:'bars3d', pal:'cyber' }
+  };
+  const p=PRES[name]; if(!p) return;
+  p.fx.forEach(fx=>{ FX[fx]=true; document.querySelector(`[data-fx="${fx}"]`)?.classList.add('active'); });
+  const mb=document.querySelector(`[data-mode="${p.mode}"]`); if(mb) setMode(mb);
+  const ps=document.querySelector(`[data-pal="${p.pal}"]`); if(ps) setPalette(ps);
+}
+
+// ── File input ──
+document.getElementById('fi').addEventListener('change',e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); });
+const dz=document.getElementById('dz');
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+dz.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{ e.preventDefault(); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+// ── Keyboard ──
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
+  if(e.code==='ArrowRight'&&audioBuf){ const o=Math.min(audioCtx.currentTime-startTime+10,audioBuf.duration); pauseOff=o; if(isPlaying) playAudio(o); }
+  if(e.code==='ArrowLeft'&&audioBuf){ const o=Math.max(audioCtx.currentTime-startTime-10,0); pauseOff=o; if(isPlaying) playAudio(o); }
+  // FX shortcuts
+  const fxKeys={'1':'trippy','2':'bloom','3':'mirror','4':'spin','5':'pulse','6':'milkdrop','7':'fractal','8':'kaleido','9':'wavedist','0':'explode'};
+  if(fxKeys[e.key]){ const fx=fxKeys[e.key]; FX[fx]=!FX[fx]; document.querySelector(`[data-fx="${fx}"]`)?.classList.toggle('active',FX[fx]); }
+});
+
+// ── Start ──
+animate();
+</script>
+</body>
+</html>
